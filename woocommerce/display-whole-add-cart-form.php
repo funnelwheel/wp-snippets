@@ -1,6 +1,6 @@
 <?php
 /**
-* Snippet Name:	Display the Add Cart Form on WooCommerce Shop page for variable products.
+* Snippet Name: Display the Add Cart Form on WooCommerce Shop page for variable products.
 */
 add_action( 'woocommerce_after_shop_loop_item', 'display_whole_add_cart_form', 1 );
 function display_whole_add_cart_form() {

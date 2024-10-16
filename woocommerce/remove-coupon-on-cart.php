@@ -1,6 +1,6 @@
 <?php
 /**
-* Snippet Name:	Remove the coupon from the WooCommerce cart.
+* Snippet Name: Remove the coupon from the WooCommerce cart.
 */
 add_filter( 'woocommerce_coupons_enabled', 'remove_coupons_on_cart' );
  
