@@ -4,6 +4,8 @@ WordPress Code Snippets Library
 Browse our collection of WordPress and plugin specific Code Snippets to Improve Your Workflow.\
 Donate: https://kish2011.gumroad.com/l/wp-snippets
 
+WPDrift: WordPress problems? Our developers are available 24/7 to fix any small jobs, on the same day, from $69 /week.
+Click this link: https://upnrunn.com/wpdrift/
 
 Content
 ~~~~~~~~~~~
