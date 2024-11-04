@@ -6,7 +6,7 @@ add_filter( 'woocommerce_coupon_message', 'modify_woocommerce_coupon_message', 1
 function modify_woocommerce_coupon_message( $msg, $msg_code, $coupon ) {
     if( $msg === __( 'Coupon code applied successfully.', 'woocommerce' ) ) {
         $msg = sprintf( 
-            __( "You are getting $%s.", "woocommerce" ), 
+            __( "You are getting $%s discounts.", "woocommerce" ), 
             '<strong>' . $coupon->get_amount() . '</strong>' 
         );
     }
