@@ -1,6 +1,6 @@
 <?php
 /**
-* Snippet Name:	Remove the Order Notes field section from the WooCommerce checkout.
+* Snippet Name:	Add the Buy on Kindle button near Add to Cart in WooCommerce PDP.
 */
 add_action('woocommerce_after_add_to_cart_button','add_kindle_button');
 function add_kindle_button() {
