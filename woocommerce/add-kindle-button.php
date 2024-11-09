@@ -1,6 +1,7 @@
 <?php
 /**
 * Snippet Name:	Add the Buy on Kindle button near Add to Cart in WooCommerce PDP.
+* Don't forget to add kindle_button_url in custom field
 */
 add_action('woocommerce_after_add_to_cart_button','add_kindle_button');
 function add_kindle_button() {
