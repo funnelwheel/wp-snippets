@@ -1,7 +1,6 @@
 <?php
 /**
 * Snippet Name:	WooCommerce Cart Refresh with Cache Busting
-*
 */
 
 /**
@@ -106,32 +105,11 @@ function auto_refresh_cart_on_page_load() {
                     error: function() {
                         console.log('AJAX error occurred');
                     }
-                });
-      }
-            
-			$(document).on("click touchstart touchend", "#elementor-menu-cart__toggle_button", { passive: false }, function(e) {
-				if (e.type === "touchstart") {
-					$(this).click();  // Trigger a click event programmatically
-				}
-				console.log("Event Triggered 2", e.type);
-				// Add a small delay before refreshing the cart after language switch
-				setTimeout(function() {
-					refreshCart();
-				}, 500);  // Delay to ensure cart is fully updated after switching language
-			});
+         });
+}
+	refreshCart();
 
-			$(document).on("click touchstart touchend", ".trp-language-switcher", function(e) {
-				if (e.type === "touchstart") {
-					$(this).click();  // Trigger a click event programmatically
-				}
-				setTimeout(function() {
-					refreshCart();
-				}, 500);  // Delay after language switch to refresh the cart
-			});
-
-			refreshCart();
-
-        });
+	});
     </script>
     <?php
 }
