@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidebar Design Block
  * Description: Adds a Gutenberg block with editable content for sidebar design.
- * Version: 1.9
+ * Version: 1.9.1
  * Author: Kishores
  */
 
@@ -92,6 +92,10 @@ function sidebar_design_block_enqueue_assets() {
                     type: 'number',
                     default: 25 // default bottom padding
                 },
+                borderRadius: {
+                    type: 'number',
+                    default: 8 // default bottom padding
+                },
                 widgetBackgroundColor: {
                     type: 'string',
                     default: '' // Default to inherit background color
@@ -99,7 +103,7 @@ function sidebar_design_block_enqueue_assets() {
             },
             edit: (props) => {
                 const { attributes, setAttributes } = props;
-                const { heading, headingAlignment, headingFontSize, headingColor, content, contentAlignment, contentFontSize, contentColor, buttonText, buttonUrl, buttonBackgroundColor, buttonTextColor, imageUrl, paddingBottom, widgetBackgroundColor } = attributes;
+                const { heading, headingAlignment, headingFontSize, headingColor, content, contentAlignment, contentFontSize, contentColor, buttonText, buttonUrl, buttonBackgroundColor, buttonTextColor, imageUrl, paddingBottom, borderRadius, widgetBackgroundColor } = attributes;
 
                 // Use localized settings passed from PHP
                 const themeButtonBgColor = window.sidebarDesignBlockSettings.buttonBackgroundColor;
@@ -111,7 +115,7 @@ function sidebar_design_block_enqueue_assets() {
                     color: '#fff',
                     padding: '0',
                     paddingBottom: paddingBottom + 'px',
-                    borderRadius: '12px',
+                    borderRadius: borderRadius + 'px',
                     textAlign: 'center',
                     fontFamily: 'Arial, sans-serif',
                     maxWidth: '300px',
@@ -179,6 +183,16 @@ function sidebar_design_block_enqueue_assets() {
                         ),
                         el(
                             PanelBody,
+                            { title: 'Border Radius Settings', initialOpen: false },
+                            el('input', {
+                                type: 'number',
+                                value: borderRadius,
+                                onChange: (event) => setAttributes({ borderRadius: parseInt(event.target.value, 10) || 8 }),
+                                placeholder: 'Border Radius (px)'
+                            })
+                        ),
+                        el(
+                            PanelBody,
                             { title: 'Background Color Settings', initialOpen: false },
                             el('div', {},
                                 el('label', {}, 'Widget Background Color'),
@@ -212,7 +226,11 @@ function sidebar_design_block_enqueue_assets() {
                         {
                             src: imageUrl,
                             alt: 'Sidebar Image',
-                            style: { width: '100%', borderRadius: '8px', marginBottom: '15px' }
+                            style: {
+                                width: '100%',
+                                borderRadius: borderRadius + 'px ' + borderRadius + 'px 0 0',
+                                marginBottom: '15px'
+                            }
                         }
                     ),
                     el(
@@ -270,7 +288,7 @@ function sidebar_design_block_enqueue_assets() {
             },
             save: (props) => {
                 const { attributes } = props;
-                const { heading, headingAlignment, headingFontSize, headingColor, content, contentAlignment, contentFontSize, contentColor, buttonText, buttonUrl, buttonBackgroundColor, buttonTextColor, imageUrl, paddingBottom, widgetBackgroundColor } = attributes;
+                const { heading, headingAlignment, headingFontSize, headingColor, content, contentAlignment, contentFontSize, contentColor, buttonText, buttonUrl, buttonBackgroundColor, buttonTextColor, imageUrl, paddingBottom, borderRadius, widgetBackgroundColor } = attributes;
 
                 // Use localized settings passed from PHP
                 const themeButtonBgColor = window.sidebarDesignBlockSettings.buttonBackgroundColor;
@@ -287,12 +305,16 @@ function sidebar_design_block_enqueue_assets() {
                     'div',
                     { className: 'sidebar-widget', style: {
                         backgroundColor: widgetBgColor, color: '#fff', padding: '0', paddingBottom: paddingBottom + 'px',
-                        borderRadius: '12px', textAlign: 'center', fontFamily: 'Arial, sans-serif', maxWidth: '300px', margin: '0 auto'
+                        borderRadius: borderRadius + 'px', textAlign: 'center', fontFamily: 'Arial, sans-serif', maxWidth: '300px', margin: '0 auto'
                     }},
                     el('img', {
                         src: imageUrl,
                         alt: 'Sidebar Image',
-                        style: { width: '100%', borderRadius: '8px', marginBottom: '15px' }
+                        style: {
+                            width: '100%',
+                            borderRadius: borderRadius + 'px ' + borderRadius + 'px 0 0',
+                            marginBottom: '15px'
+                        }
                     }),
                     el(RichText.Content, {
                         tagName: 'h2',
@@ -340,6 +362,7 @@ function render_sidebar_design_block($attributes) {
         'buttonTextColor' => get_theme_mod('button_text_color', '#121212'),
         'imageUrl' => 'https://dummyimage.com/300x150/cccccc/000000&text=Sidebar+Image',
         'paddingBottom' => 25,
+        'borderRadius' => 8,
         'widgetBackgroundColor' => '',
     ]);
 
@@ -347,9 +370,16 @@ function render_sidebar_design_block($attributes) {
     $html = '<div class="sidebar-widget" style="'
         . 'background-color: ' . esc_attr($attributes['widgetBackgroundColor'] ?: 'inherit') . '; '
         . 'padding-bottom: ' . esc_attr($attributes['paddingBottom']) . 'px; '
-        . 'text-align: center; font-family: Arial, sans-serif; max-width: 300px; margin: 0 auto; border-radius:8px;">';
+        . 'border-radius: ' . esc_attr($attributes['borderRadius']) . 'px; '
+        . 'text-align: center; font-family: Arial, sans-serif; max-width: 300px; margin: 0 auto;">';
 
-    $html .= '<img src="' . esc_url($attributes['imageUrl']) . '" alt="Sidebar Image" style="width:100%; border-radius:8px; margin-bottom:15px;" />';
+    $html .= '<img src="' 
+        . esc_url($attributes['imageUrl']) 
+        . '" alt="Sidebar Image" style="width:100%; border-radius: ' 
+        . esc_attr($attributes['borderRadius']) 
+        . 'px ' 
+        . esc_attr($attributes['borderRadius']) 
+        . 'px 0 0; margin-bottom:15px;" />';
 
     $html .= '<h2 style="font-size: ' . esc_attr($attributes['headingFontSize']) . 'px; '
         . 'text-align: ' . esc_attr($attributes['headingAlignment']) . '; '
