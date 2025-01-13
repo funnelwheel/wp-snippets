@@ -1,0 +1,69 @@
+<?php
+/**
+ * Plugin Name: Sidebar Design Block
+ * Description: Adds a Gutenberg block with static HTML for sidebar design.
+ * Version: 1.0
+ * Author: Kishores
+ */
+
+// Enqueue block editor assets
+function sidebar_design_block_enqueue_assets() {
+    wp_register_script(
+        'sidebar-design-block',
+        '',
+        ['wp-blocks', 'wp-element', 'wp-editor'],
+        null
+    );
+
+    wp_add_inline_script('sidebar-design-block', "(function (blocks, element) {
+        const { registerBlockType } = blocks;
+        const { createElement: el } = element;
+
+        registerBlockType('custom/sidebar-design-block', {
+            title: 'Sidebar Design Block',
+            icon: 'layout',
+            category: 'widgets',
+            edit: () => el(
+                'div',
+                { className: 'sidebar-design-block' },
+                'Static Sidebar Block (Editor Preview)'
+            ),
+            save: () => null,
+        });
+    })(window.wp.blocks, window.wp.element);");
+
+    wp_register_style(
+        'sidebar-design-block-editor-style',
+        plugins_url('editor.css', __FILE__),
+        ['wp-edit-blocks'],
+        filemtime(plugin_dir_path(__FILE__) . 'editor.css')
+    );
+
+    wp_register_style(
+        'sidebar-design-block-style',
+        plugins_url('style.css', __FILE__),
+        [],
+        filemtime(plugin_dir_path(__FILE__) . 'style.css')
+    );
+
+    register_block_type('custom/sidebar-design-block', [
+        'editor_script' => 'sidebar-design-block',
+        'editor_style' => 'sidebar-design-block-editor-style',
+        'style' => 'sidebar-design-block-style',
+        'render_callback' => 'render_sidebar_design_block',
+    ]);
+}
+add_action('init', 'sidebar_design_block_enqueue_assets');
+
+// Render callback function for front-end
+function render_sidebar_design_block() {
+    return '<div class="sidebar-widget" style="background-color: #121212; color: #fff; padding: 25px; border-radius: 12px; text-align: center; font-family: Arial, sans-serif; max-width: 300px; margin: 0 auto;">' .
+           '<img src="https://dummyimage.com/300x150/cccccc/000000&text=Sidebar+Image" alt="Sidebar Image" style="width: 100%; border-radius: 8px; margin-bottom: 15px;">' .
+           '<h2 style="font-size: 24px; margin-bottom: 15px; font-weight: bold; color: #BAFF96;">Need Quality Design at Scale?</h2>' .
+           '<p style="margin-bottom: 20px; font-size: 16px; line-height: 1.5; color: #ddd;">Superside can help. Let\'s chat!</p>' .
+           '<a href="#" style="display: inline-block; background-color: #BAFF96; color: #121212; padding: 12px 25px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; transition: background-color 0.3s ease;">Book a call</a>' .
+           '<style>' .
+           'a:hover { background-color: #9FE87C; }' .
+           '</style>' .
+           '</div>';
+}
