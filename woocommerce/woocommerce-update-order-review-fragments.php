@@ -1,3 +1,8 @@
+<?php
+/**
+* Snippet Name:	woocommerce_update_order_review_fragments
+* Uses on checkout page
+*/
 add_filter( 'woocommerce_update_order_review_fragments', function ( $fragments ) {
 	if ( isset( $fragments['.woocommerce-checkout-payment'] ) && empty( $fragments['.woocommerce-checkout-payment'] ) ) {
 
