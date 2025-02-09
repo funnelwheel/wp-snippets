@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Custom Tabs Gutenberg Block
  * Description: Adds a customizable tabbed interface block to the Gutenberg editor.
- * Version: 1.0
+ * Version: 1.0.1
  * Author: Kishores
  */
 
@@ -24,11 +24,11 @@ add_action('enqueue_block_editor_assets', function() {
     ?>
     <script>
     document.addEventListener('DOMContentLoaded', function () {
-        if (window.wp && wp.blocks && wp.element && wp.editor) {
+        if (window.wp && wp.blocks && wp.element && wp.blockEditor) {
             const { registerBlockType } = wp.blocks;
             const { createElement: el, Fragment } = wp.element;
-            const { RichText, InspectorControls } = wp.editor;
-            const { Button, PanelBody } = wp.components;
+            const { RichText, InspectorControls } = wp.blockEditor;
+            const { Button, PanelBody, SelectControl } = wp.components;
 
             registerBlockType('custom/tabs', {
                 title: 'Custom Tabs',
@@ -37,37 +37,43 @@ add_action('enqueue_block_editor_assets', function() {
                 attributes: {
                     tabs: {
                         type: 'array',
-                        default: [
-                            { title: 'Tab 1', content: 'Content 1' }
-                        ]
+                        default: [{ title: 'Tab 1', content: 'Content 1' }]
+                    },
+                    layoutStyle: {
+                        type: 'string',
+                        default: 'top'
                     }
                 },
 
                 edit: function (props) {
-                    function updateTabContent(index, key, value) {
-                        const tabs = [...props.attributes.tabs];
-                        tabs[index][key] = value;
-                        props.setAttributes({ tabs });
-                    }
+                    const { attributes: { tabs, layoutStyle }, setAttributes } = props;
 
-                    function addTab() {
-                        const tabs = [...props.attributes.tabs, { title: 'New Tab', content: 'New Content' }];
-                        props.setAttributes({ tabs });
-                    }
+                    const updateTabContent = (index, key, value) => {
+                        const updatedTabs = [...tabs];
+                        updatedTabs[index][key] = value;
+                        setAttributes({ tabs: updatedTabs });
+                    };
 
-                    function removeTab(index) {
-                        const tabs = props.attributes.tabs.filter((_, i) => i !== index);
-                        props.setAttributes({ tabs });
-                    }
+                    const addTab = () => setAttributes({ tabs: [...tabs, { title: 'New Tab', content: 'New Content' }] });
+                    const removeTab = (index) => setAttributes({ tabs: tabs.filter((_, i) => i !== index) });
 
                     return el(Fragment, {},
                         el(InspectorControls, {},
                             el(PanelBody, { title: 'Manage Tabs', initialOpen: true },
-                                el(Button, { isPrimary: true, onClick: addTab }, 'Add Tab')
+                                el(Button, { isPrimary: true, onClick: addTab }, 'Add Tab'),
+                                el(SelectControl, {
+                                    label: 'Tab Layout',
+                                    value: layoutStyle,
+                                    options: [
+                                        { label: 'Tabs on Top', value: 'top' },
+                                        { label: 'Tabs on Left', value: 'left' }
+                                    ],
+                                    onChange: (value) => setAttributes({ layoutStyle: value })
+                                })
                             )
                         ),
                         el('div', { className: 'custom-tabs-editor' },
-                            props.attributes.tabs.map((tab, index) =>
+                            tabs.map((tab, index) =>
                                 el('div', { className: 'custom-tab-editor', key: index },
                                     el(RichText, {
                                         tagName: 'h4',
@@ -91,14 +97,15 @@ add_action('enqueue_block_editor_assets', function() {
                 },
 
                 save: function (props) {
-                    return el('div', { className: 'custom-tabs' },
+                    const { tabs, layoutStyle } = props.attributes;
+                    return el('div', { className: `custom-tabs custom-tabs-${layoutStyle}` },
                         el('ul', { className: 'custom-tabs-nav' },
-                            props.attributes.tabs.map((tab, index) =>
+                            tabs.map((tab, index) =>
                                 el('li', { className: 'custom-tab', 'data-index': index, key: index }, tab.title)
                             )
                         ),
                         el('div', { className: 'custom-tabs-content' },
-                            props.attributes.tabs.map((tab, index) =>
+                            tabs.map((tab, index) =>
                                 el('div', { className: 'custom-tab-content', 'data-index': index, key: index }, tab.content)
                             )
                         )
@@ -109,15 +116,9 @@ add_action('enqueue_block_editor_assets', function() {
     });
     </script>
     <style>
-        .custom-tabs-editor .custom-tab-editor {
-            margin-bottom: 20px;
-        }
-        .custom-tabs-editor .custom-tab-title {
-            font-weight: bold;
-        }
-        .custom-tabs-editor .custom-tab-content {
-            color: #555;
-        }
+        .custom-tabs-editor .custom-tab-editor { margin-bottom: 20px; }
+        .custom-tabs-editor .custom-tab-title { font-weight: bold; }
+        .custom-tabs-editor .custom-tab-content { color: #555; }
     </style>
     <?php
 });
@@ -126,26 +127,23 @@ add_action('enqueue_block_editor_assets', function() {
 add_action('wp_enqueue_scripts', function() {
     ?>
     <style>
-        .custom-tabs {
+        .custom-tabs-top {
             background: #e2ffa4;
+        }
+        .custom-tabs {
             padding: 20px;
             border-radius: 10px;
         }
         .custom-tabs-nav {
-            display: flex;
             list-style: none;
             padding: 0;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #ccc;
+            margin: 0;
         }
         .custom-tab {
-            margin-right: 20px;
-            padding: 10px 15px;
             cursor: pointer;
             background: #fff;
-            border-radius: 5px 5px 0 0;
             border: 1px solid #ccc;
-            border-bottom: none;
+            padding: 10px 15px;
         }
         .custom-tab.active {
             background: #000;
@@ -156,30 +154,70 @@ add_action('wp_enqueue_scripts', function() {
             padding: 20px;
             background: #fff;
             border: 1px solid #ccc;
-            border-radius: 0 5px 5px 5px;
         }
         .custom-tabs-content > div.active {
             display: block;
         }
+
+        .custom-tabs-top .custom-tabs-nav {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ccc;
+        }
+        .custom-tabs-top .custom-tab {
+            margin-right: 20px;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+        }
+        .custom-tabs-top .custom-tabs-content > div {
+            border-radius: 0 5px 5px 5px;
+        }
+
+        .custom-tabs-left {
+            display: flex;
+            gap: 20px;
+            background: #e2ffa4;
+        }
+        .custom-tabs-left .custom-tabs-nav {
+            background: #f0f0f0;
+            border-right: 1px solid #ccc;
+            width: max-content;
+            min-width: 150px;
+        }
+        .custom-tabs-left .custom-tab {
+            border-bottom: 1px solid #ccc;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .custom-tabs-left .custom-tabs-content {
+            flex-grow: 1;
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
     </style>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const tabs = document.querySelectorAll('.custom-tab');
-            const contents = document.querySelectorAll('.custom-tabs-content > div');
+            document.querySelectorAll('.custom-tabs').forEach(container => {
+                const tabs = container.querySelectorAll('.custom-tab');
+                const contents = container.querySelectorAll('.custom-tabs-content > div');
 
-            if (tabs.length > 0) {
-                tabs[0].classList.add('active');
-                contents[0].classList.add('active');
+                if (tabs.length > 0) {
+                    tabs[0].classList.add('active');
+                    contents[0].classList.add('active');
 
-                tabs.forEach((tab, index) => {
-                    tab.addEventListener('click', () => {
-                        tabs.forEach(t => t.classList.remove('active'));
-                        contents.forEach(c => c.classList.remove('active'));
-                        tab.classList.add('active');
-                        contents[index].classList.add('active');
+                    tabs.forEach((tab, index) => {
+                        tab.addEventListener('click', () => {
+                            tabs.forEach(t => t.classList.remove('active'));
+                            contents.forEach(c => c.classList.remove('active'));
+                            tab.classList.add('active');
+                            contents[index].classList.add('active');
+                        });
                     });
-                });
-            }
+                }
+            });
         });
     </script>
     <?php
