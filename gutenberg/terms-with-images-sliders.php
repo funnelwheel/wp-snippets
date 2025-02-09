@@ -3,7 +3,7 @@
 Plugin Name: Taxonomy Terms with Images - Slider View
 Description: Display taxonomy terms with images in an Instagram-style slider with circular looping and round arrow buttons. The container width adjusts based on the number of items, and a fixed gap between images is maintained.
 Version: 1.2
-Author: Your Name
+Author: Kishores
 */
 
 /*--------------------------------------------------------------------------
