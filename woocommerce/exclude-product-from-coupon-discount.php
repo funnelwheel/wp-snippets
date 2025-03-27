@@ -1,4 +1,4 @@
-
+<?php
 function exclude_product_from_coupon_discount( $valid, $coupon, $discount ) {
     // Set the product ID you want to exclude
     $excluded_product_id = 187; // Replace with the ID of the product to exclude from the coupon
@@ -15,3 +15,4 @@ function exclude_product_from_coupon_discount( $valid, $coupon, $discount ) {
     return $valid;
 }
 add_filter( 'woocommerce_coupon_is_valid', 'exclude_product_from_coupon_discount', 10, 3 );
+?>
