@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Price History Tracker
  * Description: Track and display price change history for WooCommerce products, including variations.
  * Version: 1.3.0
- * Author: Your Name
+ * Author: Kishores
  * License: GPLv2 or later
  * Requires Plugins: woocommerce
  */
