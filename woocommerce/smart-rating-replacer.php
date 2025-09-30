@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Smart Rating Replacer (Views or Sales)
  * Description: Replaces "0 reviews" with dynamic views or sales on WooCommerce product pages. Also tracks product views.
  * Version: 1.0
- * Author: Your Name
+ * Author: Kishores
  * License: GPL2
  */
 
