@@ -2,8 +2,8 @@
 /**
  * Plugin Name: WooCommerce Editable Order Addresses
  * Plugin URI:  https://github.com/funnelwheel/
- * Description: Allows customers and guests to edit billing and shipping addresses for processing orders within 30 minutes.
- * Version:     1.0.0
+ * Description: Allows customers and guests to edit billing and shipping addresses for processing orders within 30 minutes. Recalculates shipping if the address changes.
+ * Version:     1.1.0
  * Author:      Kishores
  * Author URI:  https://kishoresahoo.wordpress.com/
  * Text Domain: wc-editable-order-addresses
@@ -19,20 +19,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Allow canceling paid orders for Processing orders within 30 minutes
  */
-add_filter( 'woocommerce_valid_order_statuses_for_cancel', function( $statuses, $order ) {
-    if ( $order instanceof WC_Order && $order->has_status( 'processing' ) ) {
-        if ( ( time() - $order->get_date_created()->getTimestamp() ) <= 30 * 60 ) {
-            $statuses[] = 'processing';
-        }
+add_filter( 'woocommerce_valid_order_statuses_for_cancel', 'wc_allow_cancel_paid_orders_all_users', 10, 2 );
+function wc_allow_cancel_paid_orders_all_users( $statuses, $order ) {
+    if ( ! $order instanceof WC_Order ) return $statuses;
+
+    if ( $order->has_status( 'processing' ) && ( time() - $order->get_date_created()->getTimestamp() ) <= 30 * 60 ) {
+        $statuses[] = 'processing';
     }
+
     return $statuses;
-}, 10, 2 );
+}
 
 /**
  * Add "Edit Order" button to My Orders table
  */
-add_filter( 'woocommerce_my_account_my_orders_actions', function( $actions, $order ) {
-    if ( ! ( $order instanceof WC_Order ) ) return $actions;
+add_filter( 'woocommerce_my_account_my_orders_actions', 'wc_add_edit_order_action', 10, 2 );
+function wc_add_edit_order_action( $actions, $order ) {
+    if ( ! $order instanceof WC_Order ) return $actions;
     if ( ! $order->has_status( 'processing' ) ) return $actions;
     if ( ( time() - $order->get_date_created()->getTimestamp() ) > 30 * 60 ) return $actions;
 
@@ -41,7 +44,11 @@ add_filter( 'woocommerce_my_account_my_orders_actions', function( $actions, $ord
 
     // For guests, include order key
     if ( ! is_user_logged_in() ) {
-        $url = add_query_arg( 'key', $order->get_order_key(), wc_get_endpoint_url( 'view-order', $order->get_id(), wc_get_page_permalink( 'myaccount' ) ) );
+        $url = add_query_arg(
+            'key',
+            $order->get_order_key(),
+            wc_get_endpoint_url( 'view-order', $order->get_id(), wc_get_page_permalink( 'myaccount' ) )
+        );
     }
 
     $actions['edit_order'] = [
@@ -50,13 +57,14 @@ add_filter( 'woocommerce_my_account_my_orders_actions', function( $actions, $ord
     ];
 
     return $actions;
-}, 10, 2 );
+}
 
 /**
  * Display combined billing + shipping form on View Order page
  */
-add_action( 'woocommerce_order_details_after_customer_details', function( $order ) {
-    if ( ! ( $order instanceof WC_Order ) ) return;
+add_action( 'woocommerce_order_details_after_customer_details', 'wc_edit_order_addresses_form' );
+function wc_edit_order_addresses_form( $order ) {
+    if ( ! $order instanceof WC_Order ) return;
     if ( ! $order->has_status( 'processing' ) ) return;
     if ( ( time() - $order->get_date_created()->getTimestamp() ) > 30 * 60 ) return;
 
@@ -88,12 +96,13 @@ add_action( 'woocommerce_order_details_after_customer_details', function( $order
         </button>
     </form>
     <?php
-});
+}
 
 /**
- * Save billing + shipping addresses
+ * Save billing + shipping addresses and recalculate shipping if needed
  */
-add_action( 'template_redirect', function() {
+add_action( 'template_redirect', 'wc_save_order_addresses_and_recalculate' );
+function wc_save_order_addresses_and_recalculate() {
     if ( ! isset( $_POST['wc_save_order_addresses'] ) ) return;
     if ( ! isset( $_POST['wc_edit_order_nonce'] ) || ! wp_verify_nonce( $_POST['wc_edit_order_nonce'], 'wc_edit_order_addresses' ) ) return;
 
@@ -104,12 +113,19 @@ add_action( 'template_redirect', function() {
     // Guest verification
     if ( ! is_user_logged_in() && ( $_GET['key'] ?? '' ) !== $order->get_order_key() ) return;
 
-    // Time limit
+    // Time limit: 30 minutes
     if ( ( time() - $order->get_date_created()->getTimestamp() ) > 30 * 60 ) {
         wc_add_notice( __( 'You can no longer edit this order.', 'woocommerce' ), 'error' );
         wp_safe_redirect( wc_get_account_endpoint_url( 'orders' ) );
         exit;
     }
+
+    // Save old shipping for comparison
+    $old_shipping = [
+        'country' => $order->get_shipping_country(),
+        'state'   => $order->get_shipping_state(),
+        'postcode'=> $order->get_shipping_postcode(),
+    ];
 
     // Prepare billing fields
     $billing_fields = [
@@ -143,6 +159,17 @@ add_action( 'template_redirect', function() {
     if ( method_exists( $order, 'set_address' ) ) {
         $order->set_address( $billing_fields, 'billing' );
         $order->set_address( $shipping_fields, 'shipping' );
+
+        // Recalculate totals if shipping address changed
+        if ( $old_shipping !== [
+            'country' => $shipping_fields['country'],
+            'state'   => $shipping_fields['state'],
+            'postcode'=> $shipping_fields['postcode'],
+        ]) {
+            $order->calculate_totals( true ); // recalc shipping & taxes
+            wc_add_notice( __( 'Shipping fees and taxes have been updated based on your new address.', 'woocommerce' ), 'notice' );
+        }
+
         $order->save();
         $order->add_order_note( __( 'Customer updated billing & shipping addresses.', 'woocommerce' ) );
 
@@ -153,4 +180,4 @@ add_action( 'template_redirect', function() {
 
     wp_safe_redirect( wp_get_referer() ?: wc_get_account_endpoint_url( 'orders' ) );
     exit;
-});
+}
