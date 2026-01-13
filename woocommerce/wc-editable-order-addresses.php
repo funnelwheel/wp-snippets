@@ -93,6 +93,7 @@ function wc_edit_order_addresses_form( $order ) {
     <?php
 }
 
+
 add_action( 'template_redirect', 'wc_save_order_addresses_and_recalculate' );
 function wc_save_order_addresses_and_recalculate() {
 
@@ -102,7 +103,7 @@ function wc_save_order_addresses_and_recalculate() {
     $order_id = absint( $_POST['order_id'] );
     $order    = wc_get_order( $order_id );
 
-    if ( ! $order || ! $order->has_status( [ 'processing', 'pending' ] ) ) return;
+    if ( ! $order || ! $order->has_status( 'processing' ) ) return;
     if ( ! is_user_logged_in() && ( $_GET['key'] ?? '' ) !== $order->get_order_key() ) return;
 
     // 30-minute edit limit
@@ -112,18 +113,20 @@ function wc_save_order_addresses_and_recalculate() {
         exit;
     }
 
-    // ✅ Get original paid amount or total at first payment
-    $original_paid_total = (float) $order->get_meta( '_original_total_paid' );
-    if ( ! $original_paid_total ) {
-        // First time edit, store it
-        $original_paid_total = (float) $order->get_total();
-        $order->update_meta_data( '_original_total_paid', $original_paid_total );
-        $order->save();
+    // Only allow one-time edit
+    if ( $order->get_meta( '_has_edited_addresses' ) ) {
+        wc_add_notice( __( 'You have already edited this order once. Further edits are not allowed.', 'woocommerce' ), 'error' );
+        wp_safe_redirect( wp_get_referer() ?: $order->get_view_order_url() );
+        exit;
     }
 
-    /**
-     * Update shipping address
-     */
+    // Calculate old shipping total (exclude Shipping Adjustment)
+    $old_shipping = 0;
+    foreach ( $order->get_items( 'shipping' ) as $item ) {
+        $old_shipping += $item->get_total();
+    }
+
+    // Update shipping address
     $order->set_address( [
         'first_name' => sanitize_text_field( $_POST['shipping_first_name'] ?? '' ),
         'last_name'  => sanitize_text_field( $_POST['shipping_last_name'] ?? '' ),
@@ -135,12 +138,7 @@ function wc_save_order_addresses_and_recalculate() {
         'country'    => sanitize_text_field( $_POST['shipping_country'] ?? '' ),
     ], 'shipping' );
 
-    // Remove existing shipping
-    foreach ( $order->get_items( 'shipping' ) as $item_id => $item ) {
-        $order->remove_item( $item_id );
-    }
-
-    // Get correct shipping zone
+    // Detect shipping zone & add first enabled shipping method
     $zone = WC_Shipping_Zones::get_zone_matching_package( [
         'destination' => [
             'country'  => $order->get_shipping_country(),
@@ -150,44 +148,116 @@ function wc_save_order_addresses_and_recalculate() {
     ] );
 
     $methods = $zone ? $zone->get_shipping_methods( true ) : [];
+    $new_shipping_total = 0;
 
     if ( ! empty( $methods ) ) {
         foreach ( $methods as $method ) {
             if ( 'yes' === $method->enabled ) {
-                $shipping_item = new WC_Order_Item_Shipping();
-                $shipping_item->set_method_title( $method->get_title() );
-                $shipping_item->set_method_id( $method->id );
-                $shipping_item->set_total( (float) $method->cost );
-                $order->add_item( $shipping_item );
+                $new_shipping_total += (float) $method->cost;
                 break;
             }
         }
     }
 
-    // Recalculate totals
-    $order->calculate_totals( true );
+    // Extra = only difference caused by new address
+    $extra = max( 0, $new_shipping_total - $old_shipping );
+
+    // Mark order as edited
+    $order->update_meta_data( '_has_edited_addresses', true );
     $order->save();
 
-    // ✅ Extra payment = new total - original paid total
-    $new_total = (float) $order->get_total();
-    $extra     = max( 0, $new_total - $original_paid_total );
+    // CASE 1: No extra payment
+    if ( $extra <= 0 ) {
+        wc_add_notice( __( 'Shipping updated successfully. No extra payment required.', 'woocommerce' ), 'success' );
+        wp_safe_redirect( wp_get_referer() ?: $order->get_view_order_url() );
+        exit;
+    }
 
-    if ( $extra > 0 ) {
-        // Allow extra payment
-        $order->update_status( 'pending', __( 'Awaiting extra payment due to shipping change.', 'woocommerce' ) );
+    $payment_method = $order->get_payment_method();
+
+    // CASE 2: COD → collect extra on delivery
+    if ( $payment_method === 'cod' ) {
+        $order->add_order_note(
+            sprintf( __( 'Shipping increased by %s. Amount will be collected on delivery.', 'woocommerce' ), wc_price( $extra ) )
+        );
+
+        wc_add_notice(
+            sprintf( __( 'Shipping increased by %s. Payable on delivery.', 'woocommerce' ), wc_price( $extra ) ),
+            'notice'
+        );
+
+        wp_safe_redirect( wp_get_referer() ?: $order->get_view_order_url() );
+        exit;
+    }
+
+    // CASE 3: Online Payment → create extra order
+    if ( in_array( $payment_method, [ 'bacs', 'stripe', 'paypal' ], true ) && $extra > 0 ) {
+
+        // Single Shipping Adjustment product
+        $extra_product_id = get_option( '_wc_shipping_adjustment_product_id' );
+        $extra_product = $extra_product_id ? wc_get_product( $extra_product_id ) : false;
+
+        if ( ! $extra_product ) {
+            $extra_product = new WC_Product_Simple();
+            $extra_product->set_name( __( 'Shipping Adjustment', 'woocommerce' ) );
+            $extra_product->set_regular_price( 0 );
+            $extra_product->set_catalog_visibility( 'hidden' ); // Hide in catalog
+            $extra_product->set_virtual( true ); // No shipping required
+            $extra_product->set_sold_individually( true );
+            $extra_product->set_manage_stock( false );
+            $extra_product->set_purchasable( false );
+            $extra_product->save();
+            update_option( '_wc_shipping_adjustment_product_id', $extra_product->get_id() );
+        }
+
+        $extra_order = wc_create_order();
+
+        // Add product as WC_Order_Item_Product with extra amount
+        $item = new WC_Order_Item_Product();
+        $item->set_product( $extra_product );
+        $item->set_quantity( 1 );
+        $item->set_subtotal( $extra );
+        $item->set_total( $extra );
+        $item->add_meta_data( '_hide_in_order', true ); // Custom flag to hide in emails/order details
+        $extra_order->add_item( $item );
+
+        // Set addresses & payment method
+        $extra_order->set_customer_id( $order->get_customer_id() );
+        $extra_order->set_address( $order->get_address( 'billing' ), 'billing' );
+        $extra_order->set_address( $order->get_address( 'shipping' ), 'shipping' );
+        $extra_order->set_payment_method( $payment_method );
+
+        $extra_order->calculate_totals();
+        $extra_order->update_meta_data( '_parent_order_id', $order->get_id() );
+        $extra_order->save();
+
+        $order->add_order_note(
+            sprintf( __( 'Extra payment order #%d created for shipping difference.', 'woocommerce' ), $extra_order->get_id() )
+        );
+        $order->save();
 
         wc_add_notice(
             sprintf(
                 __( 'Shipping increased by %s. <a href="%s">Pay the extra amount</a>.', 'woocommerce' ),
                 wc_price( $extra ),
-                esc_url( $order->get_checkout_payment_url() )
+                esc_url( $extra_order->get_checkout_payment_url() )
             ),
             'notice'
         );
-    } else {
-        wc_add_notice( __( 'Shipping updated successfully. No extra payment required.', 'woocommerce' ), 'success' );
+
+        wp_safe_redirect( wp_get_referer() ?: $order->get_view_order_url() );
+        exit;
     }
 
-    wp_safe_redirect( wp_get_referer() ?: wc_get_account_endpoint_url( 'orders' ) );
+    wc_add_notice( __( 'Shipping updated successfully.', 'woocommerce' ), 'success' );
+    wp_safe_redirect( wp_get_referer() ?: $order->get_view_order_url() );
     exit;
 }
+
+// Hide Shipping Adjustment from emails & order items
+add_filter( 'woocommerce_order_item_visible', function( $visible, $item ) {
+    if ( $item->get_product() && $item->get_product()->get_catalog_visibility() === 'hidden' ) {
+        return false;
+    }
+    return $visible;
+}, 10, 2 );
